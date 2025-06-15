@@ -1,0 +1,11 @@
+python-dotenv
+langchain>=0.1.0
+langchain-groq
+langchain-huggingface
+chromadb
+PyMuPDF
+sentence-transformers
+numpy
+scikit-learn
+torch
+transformers
