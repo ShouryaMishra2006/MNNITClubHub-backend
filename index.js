@@ -11,6 +11,7 @@ const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const passport = require("passport");
 const session = require("express-session");
+const rateLimit = require("express-rate-limit");
 const app = express();
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 require("dotenv").config();
@@ -114,23 +115,40 @@ app.use(cors({
 }));
 
 
-app.get("/", verifyUser, (req, res) => {
-  const token = req.cookies.token;
-  if (!token) {
-    return res.json("the token is not generated");
-  } else {
-    jwt.verify(token, `${process.env.JWT_SECRET_KEY}`, (err, decoded) => {
-      if (err) return res.json("the token is not available");
+app.get("/me", verifyUser, async (req, res) => {
+  try {
+    const user = await userModel.findOne({ email: req.user.email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+      },
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Server error", error: err.message });
   }
 });
+
 mongoose
   .connect(`${process.env.MONGODB_URI}/${process.env.DATABASE_NAME}`)
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.log("MongoDB connection error:", err));
 
-  
-app.post("/LoginUser", (req, res) => {
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 5, 
+  message: {
+    success: false,
+    message: "Too many login attempts. Try again later.",
+  },
+});
+app.post("/LoginUser", loginLimiter,(req, res) => {
   const { email, password } = req.body;
   console.log("Email received:", email);
 
@@ -179,9 +197,11 @@ app.post("/LoginUser", (req, res) => {
         .json({ success: false, message: "Login error", error: err });
     });
 });
+
 app.post("/RegUser", async (req, res) => {
   const { name, email, password } = req.body;
-  const emailRegex = /^[a-zA-Z0-9._%+-]+\.([0-9]{8})@mnnit\.ac\.in$/;
+  console.log(email)
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const strongPasswordRegex =
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{8,}$/;
 
@@ -193,15 +213,16 @@ app.post("/RegUser", async (req, res) => {
         .status(400)
         .json({ success: false, message: "All fields are required" });
     }
+
     if (!emailRegex.test(email)) {
       return res
         .status(400)
         .json({
           success: false,
-          message:
-            "Invalid MNNIT email format. Expected format: name.12345678@mnnit.ac.in",
+          message: "Invalid email format",
         });
     }
+
     if (!strongPasswordRegex.test(password)) {
       return res.status(400).json({
         success: false,
@@ -209,18 +230,21 @@ app.post("/RegUser", async (req, res) => {
           "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character",
       });
     }
+
     const existingUser = await userModel.findOne({ email });
     if (existingUser) {
       return res
         .status(400)
         .json({ success: false, message: "User already registered" });
     }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await userModel.create({
       name,
       email,
       password: hashedPassword,
     });
+
     const userResponse = {
       id: user._id,
       name: user.name,
