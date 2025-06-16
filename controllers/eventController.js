@@ -2,9 +2,14 @@ const Event = require('../models/event');
 const Club =require('../models/clubs');
 const User=require('../models/user')
 exports.createEvent = async (req, res) => {
-  const { club, title, date, time, location, description, attendees } = req.body;
+  const { clubId,
+      title,
+      date,
+      time,
+      location,
+      description} = req.body;
   console.log(req.body);
-
+   const club=clubId
   try {
     const newEvent = new Event({
       club,
@@ -13,7 +18,7 @@ exports.createEvent = async (req, res) => {
       time,
       location,
       description,
-      attendees: attendees || 0 
+      attendees:  0 
     });
 
     await newEvent.save();
@@ -28,7 +33,7 @@ exports.getEventsByClubId = async (req, res) => {
     try {
         const { clubId } = req.params;
         const club = await Club.findById(clubId);
-        const events = await Event.find({ club: club.name }); 
+        const events = await Event.find({ club: club._id }); 
         if (events.length === 0) {
             return res.status(404).json({ message: 'No events found for this club' });
         }
