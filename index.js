@@ -148,7 +148,7 @@ const loginLimiter = rateLimit({
     message: "Too many login attempts. Try again later.",
   },
 });
-app.post("/LoginUser", loginLimiter,(req, res) => {
+app.post("/LoginUser", loginLimiter, (req, res) => {
   const { email, password } = req.body;
   console.log("Email received:", email);
 
@@ -156,6 +156,15 @@ app.post("/LoginUser", loginLimiter,(req, res) => {
     .findOne({ email: email })
     .then((user) => {
       if (user) {
+        console.log("Password received:", password);
+        console.log("Hashed password in DB:", user.password);
+        if (!password || !user.password) {
+          return res.status(400).json({
+            success: false,
+            message: "Missing credentials",
+          });
+        }
+
         bcrypt
           .compare(password, user.password)
           .then((isMatch) => {
@@ -166,10 +175,10 @@ app.post("/LoginUser", loginLimiter,(req, res) => {
                 { expiresIn: "1d" }
               );
               res.cookie("token", token, {
-                httpOnly: true, // Prevents JavaScript access
-                secure: process.env.NODE_ENV === "production", // Secure in production
-                sameSite: "Strict", // Prevents CSRF attacks
-                maxAge: 24 * 60 * 60 * 1000, // 1 day expiration
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production",
+                sameSite: "Strict",
+                maxAge: 24 * 60 * 60 * 1000,
               });
               res.json({
                 success: true,
